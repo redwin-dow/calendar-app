@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#f4f5f7">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Datebook">
+<title>Datebook — Calendar & Tasks</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <button class="icon-btn" id="btn-today" aria-label="Jump to today">
+      <span class="today-dot"></span>
+    </button>
+    <div class="topbar-title-wrap">
+      <button class="icon-btn nav-arrow" id="btn-prev" aria-label="Previous">‹</button>
+      <h1 id="view-title">August 2026</h1>
+      <button class="icon-btn nav-arrow" id="btn-next" aria-label="Next">›</button>
+    </div>
+    <button class="icon-btn" id="btn-manage" aria-label="Manage categories & special dates">⚙</button>
+  </header>
+
+  <!-- View switcher -->
+  <div class="view-switcher" role="tablist">
+    <button class="view-tab active" data-view="month" role="tab" aria-selected="true">Month</button>
+    <button class="view-tab" data-view="week" role="tab" aria-selected="false">Week</button>
+    <button class="view-tab" data-view="day" role="tab" aria-selected="false">Day</button>
+  </div>
+
+  <!-- Overdue banner (postpone prompt) -->
+  <div class="overdue-banner" id="overdue-banner" hidden>
+    <div class="overdue-banner-text">
+      <strong id="overdue-count">0</strong> unfinished task(s) from before today
+    </div>
+    <button class="btn-link" id="btn-review-overdue">Review</button>
+  </div>
+
+  <!-- Main view container -->
+  <main id="view-container">
+    <div id="month-view" class="view-panel"></div>
+    <div id="week-view" class="view-panel" hidden></div>
+    <div id="day-view" class="view-panel" hidden></div>
+  </main>
+
+  <!-- FAB -->
+  <button class="fab" id="btn-add" aria-label="Add task">+</button>
+
+</div>
+
+<!-- ============ Task Modal ============ -->
+<div class="sheet-backdrop" id="task-backdrop" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-handle"></div>
+    <h2 id="task-modal-title">New task</h2>
+
+    <label class="field">
+      <span>Title</span>
+      <input type="text" id="task-title" placeholder="What needs doing?" maxlength="120">
+    </label>
+
+    <label class="field">
+      <span>Date</span>
+      <input type="date" id="task-date">
+    </label>
+
+    <div class="field-row">
+      <label class="field">
+        <span>Category</span>
+        <select id="task-category"></select>
+      </label>
+      <label class="field">
+        <span>Priority</span>
+        <select id="task-priority">
+          <option value="high">High</option>
+          <option value="medium" selected>Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </label>
+    </div>
+
+    <label class="field">
+      <span>Notes (optional)</span>
+      <textarea id="task-notes" rows="2" placeholder="Any details..."></textarea>
+    </label>
+
+    <div class="sheet-actions">
+      <button class="btn-ghost" id="task-delete" hidden>Delete</button>
+      <div class="sheet-actions-right">
+        <button class="btn-ghost" id="task-cancel">Cancel</button>
+        <button class="btn-primary" id="task-save">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Special Date Modal ============ -->
+<div class="sheet-backdrop" id="special-backdrop" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-handle"></div>
+    <h2 id="special-modal-title">New special date</h2>
+
+    <label class="field">
+      <span>Label</span>
+      <input type="text" id="special-label" placeholder="e.g. Rent due, Mom's birthday" maxlength="120">
+    </label>
+
+    <label class="field">
+      <span>Repeats</span>
+      <select id="special-type">
+        <option value="adhoc">One-off date</option>
+        <option value="annual">Every year</option>
+        <option value="monthly">Every month</option>
+      </select>
+    </label>
+
+    <label class="field" id="special-adhoc-field">
+      <span>Date</span>
+      <input type="date" id="special-date">
+    </label>
+
+    <div class="field-row" id="special-annual-field" hidden>
+      <label class="field">
+        <span>Month</span>
+        <select id="special-month"></select>
+      </label>
+      <label class="field">
+        <span>Day</span>
+        <select id="special-day"></select>
+      </label>
+    </div>
+
+    <label class="field" id="special-monthly-field" hidden>
+      <span>Day of month</span>
+      <select id="special-monthday"></select>
+    </label>
+
+    <label class="field">
+      <span>Category (optional)</span>
+      <select id="special-category">
+        <option value="">None</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span>Notes (optional)</span>
+      <textarea id="special-notes" rows="2" placeholder="Any details..."></textarea>
+    </label>
+
+    <div class="sheet-actions">
+      <button class="btn-ghost" id="special-delete" hidden>Delete</button>
+      <div class="sheet-actions-right">
+        <button class="btn-ghost" id="special-cancel">Cancel</button>
+        <button class="btn-primary" id="special-save">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Day Agenda Popover (from month/week tap) ============ -->
+<div class="sheet-backdrop" id="agenda-backdrop" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-handle"></div>
+    <h2 id="agenda-title">Aug 27</h2>
+    <div id="agenda-list" class="agenda-list"></div>
+    <div class="sheet-actions">
+      <div class="sheet-actions-right" style="width:100%; justify-content:space-between;">
+        <button class="btn-ghost" id="agenda-close">Close</button>
+        <button class="btn-primary" id="agenda-add">+ Add task</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Overdue Review Modal ============ -->
+<div class="sheet-backdrop" id="overdue-backdrop" hidden>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-handle"></div>
+    <h2>Unfinished tasks</h2>
+    <p class="sheet-subtext">Move these to a new date, or mark them done.</p>
+    <div id="overdue-list" class="agenda-list"></div>
+    <div class="sheet-actions">
+      <div class="sheet-actions-right">
+        <button class="btn-primary" id="overdue-done">Done reviewing</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Manage (Categories) Panel ============ -->
+<div class="sheet-backdrop" id="manage-backdrop" hidden>
+  <div class="sheet sheet-tall" role="dialog" aria-modal="true">
+    <div class="sheet-handle"></div>
+    <h2>Manage</h2>
+
+    <div class="manage-tabs">
+      <button class="manage-tab active" data-tab="categories">Categories</button>
+      <button class="manage-tab" data-tab="special">Special dates</button>
+    </div>
+
+    <div id="manage-categories" class="manage-panel">
+      <div id="category-list" class="category-list"></div>
+      <div class="add-category-row">
+        <input type="text" id="new-category-name" placeholder="New category name" maxlength="40">
+        <div id="color-swatches" class="color-swatches"></div>
+        <button class="btn-primary btn-small" id="add-category-btn">Add</button>
+      </div>
+    </div>
+
+    <div id="manage-special" class="manage-panel" hidden>
+      <div id="special-list" class="agenda-list"></div>
+      <button class="btn-primary btn-small" id="add-special-btn">+ Add special date</button>
+    </div>
+
+    <div class="sheet-actions">
+      <div class="sheet-actions-right">
+        <button class="btn-ghost" id="manage-close">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
