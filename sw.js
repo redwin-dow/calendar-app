@@ -1,4 +1,4 @@
-const CACHE_NAME = 'datebook-cache-v2';
+const CACHE_NAME = 'datebook-cache-v3';
 const ASSETS = [
   './',
   './index.html',

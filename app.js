@@ -23,6 +23,7 @@ function fromISO(s) {
   const [y, m, d] = s.split('-').map(Number);
   return new Date(y, m - 1, d);
 }
+function pad2(n) { return String(n).padStart(2, '0'); }
 function todayISO() { return toISO(new Date()); }
 function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
 function startOfWeek(d) { const r = new Date(d); r.setDate(r.getDate() - r.getDay()); return r; }
@@ -89,6 +90,7 @@ const state = {
   editingTaskId: null,
   editingSpecialId: null,
   agendaDate: null,
+  listSubtab: 'todo',      // 'todo' | 'due' — which sub-list is showing in the Lists view
 };
 
 async function loadAll() {
@@ -150,6 +152,38 @@ function tasksOn(dateISOStr) {
 }
 
 /* ============================================================
+   To-Do list (undated tasks) & Due Dates (days-remaining) list
+   ============================================================ */
+function getTodoTasks() {
+  return state.tasks
+    .filter(t => !t.date)
+    .sort((a, b) => {
+      if ((a.status === 'done') !== (b.status === 'done')) return a.status === 'done' ? 1 : -1;
+      const order = { high: 0, medium: 1, low: 2 };
+      if (order[a.priority] !== order[b.priority]) return order[a.priority] - order[b.priority];
+      return a.title.localeCompare(b.title);
+    });
+}
+
+function getDueList() {
+  // Dated, not-yet-done tasks, soonest due date first (overdue ones sort to the top).
+  return state.tasks
+    .filter(t => t.date && t.status !== 'done')
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function daysRemaining(dateISOStr) {
+  return Math.round((fromISO(dateISOStr) - fromISO(todayISO())) / 86400000);
+}
+
+function dueLabelFor(diff) {
+  if (diff < 0) return { text: `${Math.abs(diff)}d overdue`, cls: 'due-overdue' };
+  if (diff === 0) return { text: 'Due today', cls: 'due-today' };
+  if (diff === 1) return { text: 'Tomorrow', cls: 'due-upcoming' };
+  return { text: `In ${diff}d`, cls: 'due-upcoming' };
+}
+
+/* ============================================================
    Rendering: title bar
    ============================================================ */
 function renderTitle() {
@@ -164,9 +198,20 @@ function renderTitle() {
     } else {
       el.textContent = `${MONTH_LABELS[start.getMonth()].slice(0,3)} ${start.getDate()} – ${MONTH_LABELS[end.getMonth()].slice(0,3)} ${end.getDate()}`;
     }
-  } else {
+  } else if (state.view === 'day') {
     el.textContent = `${WEEKDAY_LABELS[state.anchor.getDay()]}, ${MONTH_LABELS[state.anchor.getMonth()].slice(0,3)} ${state.anchor.getDate()}`;
+  } else {
+    el.textContent = 'Lists';
   }
+}
+
+/* ============================================================
+   Rendering: quick counts (summary bar)
+   ============================================================ */
+function renderSummaryBar() {
+  const pendingTodos = state.tasks.filter(t => !t.date && t.status !== 'done').length;
+  document.getElementById('todo-count-badge').textContent = pendingTodos;
+  document.getElementById('special-count-badge').textContent = state.specialDates.length;
 }
 
 /* ============================================================
@@ -253,15 +298,7 @@ function renderWeek() {
   html += '</div>';
   container.innerHTML = html;
 
-  container.querySelectorAll('.task-chip[data-task-id]').forEach(el => {
-    el.addEventListener('click', (e) => {
-      if (e.target.classList.contains('task-chip-check')) return;
-      openTaskModal(Number(el.dataset.taskId));
-    });
-  });
-  container.querySelectorAll('.task-chip-check').forEach(el => {
-    el.addEventListener('click', (e) => { e.stopPropagation(); toggleTaskDone(Number(el.closest('.task-chip').dataset.taskId)); });
-  });
+  wireTaskChipEvents(container);
   container.querySelectorAll('.task-chip.special').forEach(el => {
     el.addEventListener('click', () => openSpecialModal(Number(el.dataset.specialId)));
   });
@@ -294,30 +331,76 @@ function renderDay() {
   html += '</div>';
   container.innerHTML = html;
 
-  container.querySelectorAll('.task-chip[data-task-id]').forEach(el => {
-    el.addEventListener('click', (e) => {
-      if (e.target.classList.contains('task-chip-check')) return;
-      openTaskModal(Number(el.dataset.taskId));
-    });
-  });
-  container.querySelectorAll('.task-chip-check').forEach(el => {
-    el.addEventListener('click', (e) => { e.stopPropagation(); toggleTaskDone(Number(el.closest('.task-chip').dataset.taskId)); });
-  });
+  wireTaskChipEvents(container);
   container.querySelectorAll('.task-chip.special').forEach(el => {
     el.addEventListener('click', () => openSpecialModal(Number(el.dataset.specialId)));
   });
 }
 
 /* ============================================================
-   Shared chip HTML
+   Rendering: Lists view (To-Do list & Due Dates countdown)
    ============================================================ */
-function taskChipHTML(t) {
+function renderLists() {
+  document.querySelectorAll('.subtab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.list === state.listSubtab);
+  });
+  if (state.listSubtab === 'todo') renderTodoList();
+  else renderDueDatesList();
+}
+
+function renderTodoList() {
+  const container = document.getElementById('lists-content');
+  const items = getTodoTasks();
+  const pending = items.filter(t => t.status !== 'done');
+  const done = items.filter(t => t.status === 'done');
+
+  let html = '';
+  if (items.length === 0) {
+    html = '<div class="day-empty">No to-do items yet.<br>Tap + to add one — no date needed.</div>';
+  } else {
+    html += '<div class="day-list">';
+    html += pending.length
+      ? pending.map(t => taskChipHTML(t)).join('')
+      : '<div class="week-empty">Nothing pending — nice work.</div>';
+    if (done.length) {
+      html += '<div class="list-section-label">Done</div>';
+      html += done.map(t => taskChipHTML(t)).join('');
+    }
+    html += '</div>';
+  }
+  container.innerHTML = html;
+  wireTaskChipEvents(container);
+}
+
+function renderDueDatesList() {
+  const container = document.getElementById('lists-content');
+  const items = getDueList();
+
+  let html = '';
+  if (items.length === 0) {
+    html = '<div class="day-empty">Nothing due — you\'re all caught up 🎉</div>';
+  } else {
+    html = '<div class="day-list">' + items.map(t => {
+      const diff = daysRemaining(t.date);
+      const { text, cls } = dueLabelFor(diff);
+      return taskChipHTML(t, `<span class="due-pill ${cls}">${text}</span>`);
+    }).join('') + '</div>';
+  }
+  container.innerHTML = html;
+  wireTaskChipEvents(container);
+}
+
+/* ============================================================
+   Shared chip HTML & wiring
+   ============================================================ */
+function taskChipHTML(t, badgeHtml) {
   const color = categoryColor(t.categoryId);
   const done = t.status === 'done';
   return `<div class="task-chip pr-${t.priority}${done ? ' done' : ''}" data-task-id="${t.id}">
     <span class="task-chip-check${done ? ' checked' : ''}">${done ? '✓' : ''}</span>
     <span class="task-chip-dot" style="background:${color}"></span>
     <span class="task-chip-title">${escapeHTML(t.title)}</span>
+    ${badgeHtml || ''}
   </div>`;
 }
 function specialChipHTML(s) {
@@ -335,6 +418,18 @@ function escapeHTML(str) {
   return div.innerHTML;
 }
 
+function wireTaskChipEvents(container) {
+  container.querySelectorAll('.task-chip[data-task-id]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if (e.target.classList.contains('task-chip-check')) return;
+      openTaskModal(Number(el.dataset.taskId));
+    });
+  });
+  container.querySelectorAll('.task-chip-check').forEach(el => {
+    el.addEventListener('click', (e) => { e.stopPropagation(); toggleTaskDone(Number(el.closest('.task-chip').dataset.taskId)); });
+  });
+}
+
 /* ============================================================
    View switching & navigation
    ============================================================ */
@@ -348,14 +443,22 @@ function switchView(view) {
   document.getElementById('month-view').hidden = view !== 'month';
   document.getElementById('week-view').hidden = view !== 'week';
   document.getElementById('day-view').hidden = view !== 'day';
+  document.getElementById('lists-view').hidden = view !== 'lists';
+
+  const isLists = view === 'lists';
+  document.getElementById('btn-prev').style.visibility = isLists ? 'hidden' : 'visible';
+  document.getElementById('btn-next').style.visibility = isLists ? 'hidden' : 'visible';
+
   renderCurrentView();
 }
 
 function renderCurrentView() {
   renderTitle();
+  renderSummaryBar();
   if (state.view === 'month') renderMonth();
   else if (state.view === 'week') renderWeek();
-  else renderDay();
+  else if (state.view === 'day') renderDay();
+  else renderLists();
 }
 
 function navigate(delta) {
@@ -363,7 +466,7 @@ function navigate(delta) {
     state.anchor = new Date(state.anchor.getFullYear(), state.anchor.getMonth() + delta, 1);
   } else if (state.view === 'week') {
     state.anchor = addDays(state.anchor, delta * 7);
-  } else {
+  } else if (state.view === 'day') {
     state.anchor = addDays(state.anchor, delta);
   }
   renderCurrentView();
@@ -371,7 +474,8 @@ function navigate(delta) {
 
 function goToday() {
   state.anchor = new Date();
-  renderCurrentView();
+  if (state.view === 'lists') switchView('month');
+  else renderCurrentView();
 }
 
 /* ============================================================
@@ -393,18 +497,25 @@ function populateCategorySelect(selectEl, includeNone) {
   });
 }
 
-function openTaskModal(taskId, presetDate) {
+function toggleTaskDateField() {
+  const noDate = document.getElementById('task-no-date').checked;
+  document.getElementById('task-date-field').hidden = noDate;
+}
+
+function openTaskModal(taskId, presetDate, forceNoDate) {
   state.editingTaskId = taskId || null;
   populateCategorySelect(document.getElementById('task-category'), false);
 
   const titleEl = document.getElementById('task-modal-title');
   const deleteBtn = document.getElementById('task-delete');
+  const noDateCb = document.getElementById('task-no-date');
 
   if (taskId) {
     const t = state.tasks.find(x => x.id === taskId);
     titleEl.textContent = 'Edit task';
     document.getElementById('task-title').value = t.title;
-    document.getElementById('task-date').value = t.date;
+    noDateCb.checked = !t.date;
+    document.getElementById('task-date').value = t.date || toISO(state.anchor);
     document.getElementById('task-category').value = t.categoryId;
     document.getElementById('task-priority').value = t.priority;
     document.getElementById('task-notes').value = t.notes || '';
@@ -412,12 +523,14 @@ function openTaskModal(taskId, presetDate) {
   } else {
     titleEl.textContent = 'New task';
     document.getElementById('task-title').value = '';
+    noDateCb.checked = !!forceNoDate;
     document.getElementById('task-date').value = presetDate || toISO(state.anchor);
     if (state.categories[0]) document.getElementById('task-category').value = state.categories[0].id;
     document.getElementById('task-priority').value = 'medium';
     document.getElementById('task-notes').value = '';
     deleteBtn.hidden = true;
   }
+  toggleTaskDateField();
   document.getElementById('task-backdrop').hidden = false;
 }
 function closeTaskModal() { document.getElementById('task-backdrop').hidden = true; }
@@ -425,9 +538,10 @@ function closeTaskModal() { document.getElementById('task-backdrop').hidden = tr
 async function saveTask() {
   const title = document.getElementById('task-title').value.trim();
   if (!title) { document.getElementById('task-title').focus(); return; }
+  const noDate = document.getElementById('task-no-date').checked;
   const record = {
     title,
-    date: document.getElementById('task-date').value || todayISO(),
+    date: noDate ? null : (document.getElementById('task-date').value || todayISO()),
     categoryId: Number(document.getElementById('task-category').value),
     priority: document.getElementById('task-priority').value,
     notes: document.getElementById('task-notes').value.trim(),
@@ -465,25 +579,36 @@ async function toggleTaskDone(taskId) {
 /* ============================================================
    Special date modal
    ============================================================ */
-function populateMonthDaySelects() {
-  const monthSel = document.getElementById('special-month');
-  monthSel.innerHTML = MONTH_LABELS.map((m, i) => `<option value="${i}">${m}</option>`).join('');
-  const daySel = document.getElementById('special-day');
-  daySel.innerHTML = Array.from({ length: 31 }, (_, i) => `<option value="${i+1}">${i+1}</option>`).join('');
-  const monthDaySel = document.getElementById('special-monthday');
-  monthDaySel.innerHTML = Array.from({ length: 31 }, (_, i) => `<option value="${i+1}">${i+1}</option>`).join('');
-}
-
 function updateSpecialTypeFields() {
   const type = document.getElementById('special-type').value;
-  document.getElementById('special-adhoc-field').hidden = type !== 'adhoc';
-  document.getElementById('special-annual-field').hidden = type !== 'annual';
-  document.getElementById('special-monthly-field').hidden = type !== 'monthly';
+  const label = document.getElementById('special-date-label');
+  const hint = document.getElementById('special-date-hint');
+  if (type === 'adhoc') {
+    label.textContent = 'Date';
+    hint.textContent = '';
+  } else if (type === 'annual') {
+    label.textContent = 'Pick any date with the month & day you want';
+    hint.textContent = 'Only the month and day are used — the year is ignored.';
+  } else {
+    label.textContent = 'Pick any date with the day you want';
+    hint.textContent = 'Only the day number is used — month and year are ignored.';
+  }
+  updateSpecialPreview();
+}
+
+function updateSpecialPreview() {
+  const type = document.getElementById('special-type').value;
+  const val = document.getElementById('special-date').value;
+  const previewEl = document.getElementById('special-preview');
+  if (!val) { previewEl.textContent = ''; return; }
+  const d = fromISO(val);
+  if (type === 'adhoc') previewEl.textContent = `Happens once — ${MONTH_LABELS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}.`;
+  else if (type === 'annual') previewEl.textContent = `Repeats every year on ${MONTH_LABELS[d.getMonth()]} ${d.getDate()}.`;
+  else previewEl.textContent = `Repeats every month on day ${d.getDate()}.`;
 }
 
 function openSpecialModal(specialId, presetDate) {
   state.editingSpecialId = specialId || null;
-  populateMonthDaySelects();
   populateCategorySelect(document.getElementById('special-category'), true);
 
   const titleEl = document.getElementById('special-modal-title');
@@ -494,9 +619,11 @@ function openSpecialModal(specialId, presetDate) {
     titleEl.textContent = 'Edit special date';
     document.getElementById('special-label').value = s.label;
     document.getElementById('special-type').value = s.type;
-    if (s.type === 'adhoc') document.getElementById('special-date').value = s.date;
-    if (s.type === 'annual') { document.getElementById('special-month').value = s.month; document.getElementById('special-day').value = s.day; }
-    if (s.type === 'monthly') document.getElementById('special-monthday').value = s.day;
+    let dateVal;
+    if (s.type === 'adhoc') dateVal = s.date;
+    else if (s.type === 'annual') dateVal = `2024-${pad2(s.month + 1)}-${pad2(s.day)}`;
+    else dateVal = `2024-01-${pad2(s.day)}`;
+    document.getElementById('special-date').value = dateVal;
     document.getElementById('special-category').value = s.categoryId || '';
     document.getElementById('special-notes').value = s.notes || '';
     deleteBtn.hidden = false;
@@ -518,6 +645,9 @@ async function saveSpecial() {
   const label = document.getElementById('special-label').value.trim();
   if (!label) { document.getElementById('special-label').focus(); return; }
   const type = document.getElementById('special-type').value;
+  const dateVal = document.getElementById('special-date').value;
+  if (!dateVal) { document.getElementById('special-date').focus(); return; }
+  const d = fromISO(dateVal);
   const catVal = document.getElementById('special-category').value;
   const record = {
     label,
@@ -525,9 +655,9 @@ async function saveSpecial() {
     categoryId: catVal ? Number(catVal) : null,
     notes: document.getElementById('special-notes').value.trim(),
   };
-  if (type === 'adhoc') record.date = document.getElementById('special-date').value;
-  if (type === 'annual') { record.month = Number(document.getElementById('special-month').value); record.day = Number(document.getElementById('special-day').value); }
-  if (type === 'monthly') record.day = Number(document.getElementById('special-monthday').value);
+  if (type === 'adhoc') record.date = dateVal;
+  else if (type === 'annual') { record.month = d.getMonth(); record.day = d.getDate(); }
+  else record.day = d.getDate();
 
   if (state.editingSpecialId) record.id = state.editingSpecialId;
   await Store.put('specialDates', record);
@@ -584,7 +714,7 @@ function closeAgenda() { document.getElementById('agenda-backdrop').hidden = tru
    ============================================================ */
 function getOverdueTasks() {
   const today = todayISO();
-  return state.tasks.filter(t => t.status === 'pending' && t.date < today);
+  return state.tasks.filter(t => t.status === 'pending' && t.date && t.date < today);
 }
 
 function refreshOverdueBanner() {
@@ -747,15 +877,25 @@ function initEvents() {
     tab.addEventListener('click', () => switchView(tab.dataset.view));
   });
 
-  document.getElementById('btn-add').addEventListener('click', () => openTaskModal(null, toISO(state.anchor)));
+  document.getElementById('btn-add').addEventListener('click', () => {
+    if (state.view === 'lists' && state.listSubtab === 'todo') {
+      openTaskModal(null, null, true);
+    } else if (state.view === 'lists') {
+      openTaskModal(null, todayISO(), false);
+    } else {
+      openTaskModal(null, toISO(state.anchor));
+    }
+  });
   document.getElementById('task-cancel').addEventListener('click', closeTaskModal);
   document.getElementById('task-save').addEventListener('click', saveTask);
   document.getElementById('task-delete').addEventListener('click', deleteTask);
+  document.getElementById('task-no-date').addEventListener('change', toggleTaskDateField);
 
   document.getElementById('special-cancel').addEventListener('click', closeSpecialModal);
   document.getElementById('special-save').addEventListener('click', saveSpecial);
   document.getElementById('special-delete').addEventListener('click', deleteSpecial);
   document.getElementById('special-type').addEventListener('change', updateSpecialTypeFields);
+  document.getElementById('special-date').addEventListener('input', updateSpecialPreview);
 
   document.getElementById('agenda-close').addEventListener('click', closeAgenda);
   document.getElementById('agenda-add').addEventListener('click', () => {
@@ -787,6 +927,24 @@ function initEvents() {
     renderCurrentView();
   });
   document.getElementById('add-special-btn').addEventListener('click', () => { closeManage(); openSpecialModal(null); });
+
+  // Lists view sub-tabs (To-Do List / Due Dates)
+  document.querySelectorAll('.subtab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      state.listSubtab = tab.dataset.list;
+      renderLists();
+    });
+  });
+
+  // Summary bar chips jump straight to the relevant list
+  document.getElementById('chip-todo').addEventListener('click', () => {
+    state.listSubtab = 'todo';
+    switchView('lists');
+  });
+  document.getElementById('chip-special').addEventListener('click', () => {
+    openManage();
+    document.querySelector('.manage-tab[data-tab="special"]').click();
+  });
 
   // Backdrop click-to-close for all sheets
   document.querySelectorAll('.sheet-backdrop').forEach(bd => {

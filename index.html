@@ -36,6 +36,13 @@
     <button class="view-tab active" data-view="month" role="tab" aria-selected="true">Month</button>
     <button class="view-tab" data-view="week" role="tab" aria-selected="false">Week</button>
     <button class="view-tab" data-view="day" role="tab" aria-selected="false">Day</button>
+    <button class="view-tab" data-view="lists" role="tab" aria-selected="false">Lists</button>
+  </div>
+
+  <!-- Summary bar: quick counts -->
+  <div class="summary-bar">
+    <button class="summary-chip" id="chip-todo">📋 <strong id="todo-count-badge">0</strong> to-do</button>
+    <button class="summary-chip" id="chip-special">📌 <strong id="special-count-badge">0</strong> special date</button>
   </div>
 
   <!-- Overdue banner (postpone prompt) -->
@@ -51,6 +58,13 @@
     <div id="month-view" class="view-panel"></div>
     <div id="week-view" class="view-panel" hidden></div>
     <div id="day-view" class="view-panel" hidden></div>
+    <div id="lists-view" class="view-panel" hidden>
+      <div class="subtabs" id="lists-subtabs">
+        <button class="subtab active" data-list="todo">To-Do</button>
+        <button class="subtab" data-list="due">Due Dates</button>
+      </div>
+      <div id="lists-content"></div>
+    </div>
   </main>
 
   <!-- FAB -->
@@ -69,10 +83,15 @@
       <input type="text" id="task-title" placeholder="What needs doing?" maxlength="120">
     </label>
 
-    <label class="field">
+    <label class="field checkbox-field">
+      <input type="checkbox" id="task-no-date">
+      <span>No specific date (add to To-Do list)</span>
+    </label>
+
+    <div class="field" id="task-date-field">
       <span>Date</span>
       <input type="date" id="task-date">
-    </label>
+    </div>
 
     <div class="field-row">
       <label class="field">
@@ -119,31 +138,18 @@
       <span>Repeats</span>
       <select id="special-type">
         <option value="adhoc">One-off date</option>
-        <option value="annual">Every year</option>
-        <option value="monthly">Every month</option>
+        <option value="annual">Every year (birthday, anniversary...)</option>
+        <option value="monthly">Every month (rent, bill due...)</option>
       </select>
     </label>
 
-    <label class="field" id="special-adhoc-field">
-      <span>Date</span>
+    <label class="field">
+      <span id="special-date-label">Date</span>
       <input type="date" id="special-date">
+      <span class="field-hint" id="special-date-hint"></span>
     </label>
 
-    <div class="field-row" id="special-annual-field" hidden>
-      <label class="field">
-        <span>Month</span>
-        <select id="special-month"></select>
-      </label>
-      <label class="field">
-        <span>Day</span>
-        <select id="special-day"></select>
-      </label>
-    </div>
-
-    <label class="field" id="special-monthly-field" hidden>
-      <span>Day of month</span>
-      <select id="special-monthday"></select>
-    </label>
+    <div class="special-preview" id="special-preview"></div>
 
     <label class="field">
       <span>Category (optional)</span>

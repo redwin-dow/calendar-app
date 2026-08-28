@@ -381,6 +381,7 @@ main#view-container {
   color: var(--text-dim);
   flex: 1;
 }
+.field[hidden] { display: none; }
 .field-row { display: flex; gap: 10px; }
 .field input, .field select, .field textarea {
   background: var(--surface-2);
@@ -396,6 +397,20 @@ main#view-container {
 .field input:focus, .field select:focus, .field textarea:focus {
   outline: none;
   border-color: var(--accent);
+}
+.checkbox-field { flex-direction: row; align-items: center; gap: 8px; }
+.checkbox-field input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--accent); flex-shrink: 0; }
+.checkbox-field span { color: var(--text); font-size: 13.5px; }
+.field-hint { font-size: 11px; color: var(--text-faint); font-weight: 400; }
+.special-preview {
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin: -4px 0 12px;
+  min-height: 14px;
 }
 
 .sheet-actions {
@@ -470,6 +485,64 @@ main#view-container {
   cursor: pointer;
 }
 .color-swatches .swatch-btn.selected { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--text-faint); }
+
+/* ===== Summary bar ===== */
+.summary-bar { display: flex; gap: 8px; margin: 0 12px 8px; }
+.summary-chip {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.summary-chip strong { color: var(--text); font-size: 13px; }
+
+/* ===== Lists view sub-tabs ===== */
+.subtabs, .manage-tabs { display: flex; gap: 6px; margin: 4px 4px 12px; }
+.subtab, .manage-tab {
+  flex: 1;
+  background: var(--surface-2);
+  border: none;
+  color: var(--text-dim);
+  padding: 8px 0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.subtab.active, .manage-tab.active { background: var(--accent-dim); color: var(--accent); }
+
+/* ===== Due-date pills ===== */
+.due-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 20px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.due-overdue { background: #fef2f2; color: var(--pr-high); }
+.due-today { background: #fff7ed; color: var(--pr-med); }
+.due-upcoming { background: var(--accent-dim); color: var(--accent); }
+
+.list-section-label {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin: 10px 4px 4px;
+}
 
 /* Scrollbar tidy */
 ::-webkit-scrollbar { width: 0; height: 0; }
