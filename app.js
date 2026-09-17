@@ -166,7 +166,6 @@ function getTodoTasks() {
 }
 
 function getDueList() {
-  // Dated, not-yet-done tasks, soonest due date first (overdue ones sort to the top).
   return state.tasks
     .filter(t => t.date && t.status !== 'done')
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -877,6 +876,37 @@ async function openManage() {
 function closeManage() { document.getElementById('manage-backdrop').hidden = true; }
 
 /* ============================================================
+   Manual Web App Update Handler
+   ============================================================ */
+async function checkForAppUpdate() {
+  const statusEl = document.getElementById('update-status-text');
+  statusEl.textContent = 'Checking for updates...';
+
+  if (!('serviceWorker' in navigator)) {
+    statusEl.textContent = 'Service Workers not supported on this browser.';
+    return;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    await registration.update();
+
+    if (registration.waiting) {
+      statusEl.textContent = 'New version found! Reloading...';
+      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+    } else {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(key => caches.delete(key)));
+      statusEl.textContent = 'Cache cleared! Refreshing app...';
+      setTimeout(() => window.location.reload(true), 800);
+    }
+  } catch (err) {
+    console.error('Update check failed:', err);
+    statusEl.textContent = 'Failed to check for updates. Try again.';
+  }
+}
+
+/* ============================================================
    Web Notification & Scheduler Engine
    ============================================================ */
 let reminderTimer = null;
@@ -899,7 +929,7 @@ async function setupNotificationScheduler() {
   const delay = scheduledTime.getTime() - now.getTime();
   reminderTimer = setTimeout(async () => {
     await sendTaskNotification();
-    setupNotificationScheduler(); // Re-schedule for next day
+    setupNotificationScheduler();
   }, delay);
 }
 
@@ -1010,6 +1040,8 @@ function initEvents() {
     alert('Reminder settings updated.');
   });
 
+  document.getElementById('btn-check-update').addEventListener('click', checkForAppUpdate);
+
   document.getElementById('add-category-btn').addEventListener('click', async () => {
     const name = document.getElementById('new-category-name').value.trim();
     if (!name) return;
@@ -1021,7 +1053,6 @@ function initEvents() {
   });
   document.getElementById('add-special-btn').addEventListener('click', () => { closeManage(); openSpecialModal(null); });
 
-  // Lists view sub-tabs (To-Do List / Due Dates)
   document.querySelectorAll('.subtab').forEach(tab => {
     tab.addEventListener('click', () => {
       state.listSubtab = tab.dataset.list;
@@ -1029,7 +1060,6 @@ function initEvents() {
     });
   });
 
-  // Summary bar chips jump straight to the relevant list
   document.getElementById('chip-todo').addEventListener('click', () => {
     state.listSubtab = 'todo';
     switchView('lists');
@@ -1039,7 +1069,6 @@ function initEvents() {
     document.querySelector('.manage-tab[data-tab="special"]').click();
   });
 
-  // Backdrop click-to-close for all sheets
   document.querySelectorAll('.sheet-backdrop').forEach(bd => {
     bd.addEventListener('click', (e) => { if (e.target === bd) bd.hidden = true; });
   });

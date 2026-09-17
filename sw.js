@@ -1,4 +1,4 @@
-const CACHE_NAME = 'datebook-cache-v3';
+const CACHE_NAME = 'datebook-v1.0.1';
 const ASSETS = [
   './',
   './index.html',
@@ -11,8 +11,9 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
 });
 
@@ -24,7 +25,12 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Cache-first for app shell, network-first fallback for everything else
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(
