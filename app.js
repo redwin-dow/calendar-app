@@ -798,7 +798,7 @@ async function maybeAutoPromptOverdue() {
 }
 
 /* ============================================================
-   Manage panel: categories & special dates list
+   Manage panel: categories, notifications & special dates list
    ============================================================ */
 let selectedNewCategoryColor = PALETTE[0];
 
@@ -858,13 +858,86 @@ function renderSpecialList() {
   });
 }
 
-function openManage() {
+async function renderNotificationSettings() {
+  const settings = await Store.get('settings', 'notifications');
+  const enabled = settings ? settings.enabled : false;
+  const time = settings ? settings.time : '22:00';
+
+  document.getElementById('notify-enable').checked = enabled;
+  document.getElementById('notify-time').value = time;
+}
+
+async function openManage() {
   renderCategoryList();
   renderColorSwatches();
   renderSpecialList();
+  await renderNotificationSettings();
   document.getElementById('manage-backdrop').hidden = false;
 }
 function closeManage() { document.getElementById('manage-backdrop').hidden = true; }
+
+/* ============================================================
+   Web Notification & Scheduler Engine
+   ============================================================ */
+let reminderTimer = null;
+
+async function setupNotificationScheduler() {
+  if (reminderTimer) clearTimeout(reminderTimer);
+
+  const settings = await Store.get('settings', 'notifications');
+  if (!settings || !settings.enabled) return;
+
+  const [targetHour, targetMinute] = settings.time.split(':').map(Number);
+  const now = new Date();
+  let scheduledTime = new Date();
+  scheduledTime.setHours(targetHour, targetMinute, 0, 0);
+
+  if (now >= scheduledTime) {
+    scheduledTime.setDate(scheduledTime.getDate() + 1);
+  }
+
+  const delay = scheduledTime.getTime() - now.getTime();
+  reminderTimer = setTimeout(async () => {
+    await sendTaskNotification();
+    setupNotificationScheduler(); // Re-schedule for next day
+  }, delay);
+}
+
+async function sendTaskNotification() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const tomorrow = addDays(new Date(), 1);
+  const tomorrowISO = toISO(tomorrow);
+  
+  const pendingTasks = state.tasks.filter(t => t.date === tomorrowISO && t.status !== 'done');
+  const specials = specialDatesOn(tomorrow);
+
+  const totalItems = pendingTasks.length + specials.length;
+  const title = `Tomorrow's Schedule (${MONTH_LABELS[tomorrow.getMonth()].slice(0,3)} ${tomorrow.getDate()})`;
+  let body = '';
+
+  if (totalItems === 0) {
+    body = 'You have no scheduled tasks or special dates tomorrow.';
+  } else {
+    body = `You have ${totalItems} item(s) tomorrow: `;
+    const items = [...specials.map(s => s.label), ...pendingTasks.map(t => t.title)];
+    body += items.slice(0, 3).join(', ');
+    if (items.length > 3) body += `, +${items.length - 3} more`;
+  }
+
+  const options = {
+    body,
+    icon: 'icons/icon-192.png',
+    badge: 'icons/icon-192.png'
+  };
+
+  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    const reg = await navigator.serviceWorker.ready;
+    reg.showNotification(title, options);
+  } else {
+    new Notification(title, options);
+  }
+}
 
 /* ============================================================
    Wire up static event listeners
@@ -915,8 +988,28 @@ function initEvents() {
       tab.classList.add('active');
       document.getElementById('manage-categories').hidden = tab.dataset.tab !== 'categories';
       document.getElementById('manage-special').hidden = tab.dataset.tab !== 'special';
+      document.getElementById('manage-notifications').hidden = tab.dataset.tab !== 'notifications';
     });
   });
+
+  document.getElementById('save-notify-btn').addEventListener('click', async () => {
+    const enabled = document.getElementById('notify-enable').checked;
+    const time = document.getElementById('notify-time').value;
+
+    if (enabled && 'Notification' in window) {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        alert('Notification permissions are required to enable daily reminders.');
+        document.getElementById('notify-enable').checked = false;
+        return;
+      }
+    }
+
+    await Store.put('settings', { key: 'notifications', enabled, time });
+    await setupNotificationScheduler();
+    alert('Reminder settings updated.');
+  });
+
   document.getElementById('add-category-btn').addEventListener('click', async () => {
     const name = document.getElementById('new-category-name').value.trim();
     if (!name) return;
@@ -963,6 +1056,7 @@ async function boot() {
   switchView('month');
   refreshOverdueBanner();
   await maybeAutoPromptOverdue();
+  await setupNotificationScheduler();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -203,7 +203,7 @@
   </div>
 </div>
 
-<!-- ============ Manage (Categories) Panel ============ -->
+<!-- ============ Manage (Categories / Notifications / Special) Panel ============ -->
 <div class="sheet-backdrop" id="manage-backdrop" hidden>
   <div class="sheet sheet-tall" role="dialog" aria-modal="true">
     <div class="sheet-handle"></div>
@@ -212,6 +212,7 @@
     <div class="manage-tabs">
       <button class="manage-tab active" data-tab="categories">Categories</button>
       <button class="manage-tab" data-tab="special">Special dates</button>
+      <button class="manage-tab" data-tab="notifications">Reminders</button>
     </div>
 
     <div id="manage-categories" class="manage-panel">
@@ -226,6 +227,23 @@
     <div id="manage-special" class="manage-panel" hidden>
       <div id="special-list" class="agenda-list"></div>
       <button class="btn-primary btn-small" id="add-special-btn">+ Add special date</button>
+    </div>
+
+    <div id="manage-notifications" class="manage-panel" hidden>
+      <div style="display:flex; flex-direction:column; gap:16px; padding:12px 0;">
+        <label class="field checkbox-field">
+          <input type="checkbox" id="notify-enable">
+          <span>Enable Daily Evening Reminder</span>
+        </label>
+        
+        <label class="field">
+          <span>Reminder Time</span>
+          <input type="time" id="notify-time" value="22:00">
+          <span class="field-hint">Generates a notification summarizing pending tasks scheduled for the next day.</span>
+        </label>
+        
+        <button class="btn-primary btn-small" id="save-notify-btn" style="align-self:flex-start;">Save Reminder Settings</button>
+      </div>
     </div>
 
     <div class="sheet-actions">
