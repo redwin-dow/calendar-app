@@ -1,4 +1,4 @@
-const CACHE_NAME = 'datebook-v1.0.1';
+const CACHE_NAME = 'datebook-v1.0.2';
 const ASSETS = [
   './',
   './index.html',
@@ -41,6 +41,26 @@ self.addEventListener('fetch', (event) => {
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         return response;
       }).catch(() => cached);
+    })
+  );
+});
+
+/* Handle direct background notification requests from main app thread */
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      if (clientList.length > 0) {
+        let client = clientList[0];
+        for (let i = 0; i < clientList.length; i++) {
+          if (clientList[i].focused) {
+            client = clientList[i];
+            break;
+          }
+        }
+        return client.focus();
+      }
+      return clients.openWindow('./');
     })
   );
 });

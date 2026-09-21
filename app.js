@@ -909,6 +909,9 @@ async function checkForAppUpdate() {
 /* ============================================================
    Web Notification & Scheduler Engine
    ============================================================ */
+/* ============================================================
+   Updated Web Notification & Android Scheduler Engine
+   ============================================================ */
 let reminderTimer = null;
 
 async function setupNotificationScheduler() {
@@ -922,13 +925,26 @@ async function setupNotificationScheduler() {
   let scheduledTime = new Date();
   scheduledTime.setHours(targetHour, targetMinute, 0, 0);
 
+  // Check if we passed today's notification time or need to fire immediately
+  const lastFired = await Store.get('settings', 'lastNotificationFired');
+  const todayStr = todayISO();
+
   if (now >= scheduledTime) {
+    // If enabled, time passed today, and hasn't fired yet today -> fire now
+    if (!lastFired || lastFired.value !== todayStr) {
+      await sendTaskNotification();
+      await Store.put('settings', { key: 'lastNotificationFired', value: todayStr });
+    }
+    // Schedule for tomorrow
     scheduledTime.setDate(scheduledTime.getDate() + 1);
   }
 
   const delay = scheduledTime.getTime() - now.getTime();
+  
+  // Set in-memory timer for foreground active sessions
   reminderTimer = setTimeout(async () => {
     await sendTaskNotification();
+    await Store.put('settings', { key: 'lastNotificationFired', value: todayISO() });
     setupNotificationScheduler();
   }, delay);
 }
@@ -958,16 +974,30 @@ async function sendTaskNotification() {
   const options = {
     body,
     icon: 'icons/icon-192.png',
-    badge: 'icons/icon-192.png'
+    badge: 'icons/icon-192.png',
+    tag: 'daily-reminder',
+    renotify: true,
+    vibrate: [100, 50, 100]
   };
 
-  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    const reg = await navigator.serviceWorker.ready;
-    reg.showNotification(title, options);
-  } else {
-    new Notification(title, options);
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification(title, options);
+    } else {
+      new Notification(title, options);
+    }
+  } catch (err) {
+    console.error('Error showing notification:', err);
   }
 }
+
+/* Sync notifications on app resume/wake up */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    setupNotificationScheduler();
+  }
+});
 
 /* ============================================================
    Wire up static event listeners
