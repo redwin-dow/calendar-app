@@ -909,9 +909,6 @@ async function checkForAppUpdate() {
 /* ============================================================
    Web Notification & Scheduler Engine
    ============================================================ */
-/* ============================================================
-   Updated Web Notification & Android Scheduler Engine
-   ============================================================ */
 let reminderTimer = null;
 
 async function setupNotificationScheduler() {
@@ -998,6 +995,31 @@ document.addEventListener('visibilitychange', () => {
     setupNotificationScheduler();
   }
 });
+
+/* ============================================================
+   Version Display Helper
+   ============================================================ */
+async function displayAppVersion() {
+  const versionEl = document.getElementById('app-version-display');
+  if (!versionEl) return;
+
+  if ('serviceWorker' in navigator) {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      if (registration.active) {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = (event) => {
+          if (event.data && event.data.version) {
+            versionEl.textContent = event.data.version;
+          }
+        };
+        registration.active.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
+      }
+    } catch (e) {
+      console.warn('Could not retrieve SW version:', e);
+    }
+  }
+}
 
 /* ============================================================
    Wire up static event listeners
@@ -1118,7 +1140,9 @@ async function boot() {
   await setupNotificationScheduler();
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.register('sw.js').then(() => {
+      displayAppVersion();
+    }).catch(() => {});
   }
 }
 

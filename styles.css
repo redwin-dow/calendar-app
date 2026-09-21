@@ -152,6 +152,15 @@ main#view-container {
 }
 .view-panel { height: 100%; }
 
+/* ===== App footer ===== */
+.app-footer {
+  text-align: center;
+  padding: 16px 8px 8px;
+  font-size: 11px;
+  color: var(--text-faint);
+  font-weight: 500;
+}
+
 /* ===== Month grid ===== */
 .month-weekdays {
   display: grid;

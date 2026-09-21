@@ -1,4 +1,4 @@
-const CACHE_NAME = 'datebook-v1.0.2';
+const CACHE_NAME = 'datebook-v1.0.3';
 const ASSETS = [
   './',
   './index.html',
@@ -28,6 +28,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+  }
+
+  // Return the active cache version string
+  if (event.data && event.data.type === 'GET_VERSION' && event.ports && event.ports[0]) {
+    event.ports[0].postMessage({ version: CACHE_NAME });
   }
 });
 
