@@ -1006,14 +1006,16 @@ async function displayAppVersion() {
   if ('serviceWorker' in navigator) {
     try {
       const registration = await navigator.serviceWorker.ready;
-      if (registration.active) {
+      const targetWorker = registration.active || navigator.serviceWorker.controller;
+      
+      if (targetWorker) {
         const channel = new MessageChannel();
         channel.port1.onmessage = (event) => {
           if (event.data && event.data.version) {
             versionEl.textContent = event.data.version;
           }
         };
-        registration.active.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
+        targetWorker.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
       }
     } catch (e) {
       console.warn('Could not retrieve SW version:', e);
